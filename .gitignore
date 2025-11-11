@@ -1,0 +1,5 @@
+data/raw/
+*.jpg
+*.jpeg
+*.png
+*.json
