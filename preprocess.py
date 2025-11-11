@@ -14,9 +14,10 @@ class InstructionColorizationDataset(Dataset):
         self.tokenizer = tokenizer
         with open(ann_path, "r") as f:
             self.data = json.load(f)
+        self._img_names = list(self.data.keys())
     
     def __len__(self):
-        return len(self.data)
+        return len(self._img_names)
 
     def rgb_to_lab(self, img_path):
         """
@@ -47,7 +48,7 @@ class InstructionColorizationDataset(Dataset):
     
     def __getitem__(self, idx):
         """Gets filename and corresponding instruction"""
-        img_name = list(self.data.keys())[idx]
+        img_name = self._img_names[idx]
         instruction_data = self.data[img_name]
         instruction = instruction_data[0] if isinstance(instruction_data, list) else instruction_data
         img_path = os.path.join(self.img_dir, img_name)
@@ -67,6 +68,7 @@ class InstructionColorizationDataset(Dataset):
             truncation = True,
             return_tensors = "pt"
         )
+        text_tokens = {key: tensor.squeeze(0) for key, tensor in text_tokens.items()}
         return {
             "L" : L,        # Grayscale input
             "ab": ab,       # Color target
@@ -78,7 +80,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     dataset = InstructionColorizationDataset(
         img_dir = os.path.abspath("data/raw/train2014"),
-        ann_path = os.path.abspath("data/processed/instruction_train2014.json"),
+        ann_path = os.path.abspath("data/processed/instructions_train2014.json"),
         tokenizer = tokenizer
     )
     sample = dataset[0]
