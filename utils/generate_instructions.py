@@ -2,18 +2,8 @@ import os
 import json
 import random
 from tqdm import tqdm
+from config import RAW_DIR, PROCESSED_DIR, ANNOTATIONS
 
-# Config
-RAW_DIR = "data/raw"
-PROCESSED_DIR = "data/processed"
-os.makedirs(PROCESSED_DIR, exist_ok = True)
-
-ANNOTATIONS = {
-    "train2014" : os.path.join(RAW_DIR, "annotations/annotations2014/captions_train2014.json"),
-    "val2014" : os.path.join(RAW_DIR, "annotations/annotations2014/captions_val2014.json"),
-    "train2017" : os.path.join(RAW_DIR, "annotations/annotations2017/captions_train2017.json"),
-    "val2017" : os.path.join(RAW_DIR, "annotations/annotations2017/captions_val2017.json")
-}
 
 def caption_to_instruction(caption: str) -> str:
     """Converts a caption into an instruction for colorization"""
@@ -22,23 +12,24 @@ def caption_to_instruction(caption: str) -> str:
         f"Apply realistic colors according to: {caption}",
         f"Use appropriate colors to match: {caption}",
         f"Make the image colorful as described: {caption}",
-        f"Color the objects to reflect this scene: {caption}"
-    ]    
+        f"Color the objects to reflect this scene: {caption}",
+    ]
     return random.choice(templates)
+
 
 def build_instruction_json(annot_path: str, split_name: str):
     """Create an instruction mapping (image_id -> text)"""
     if not os.path.exists(annot_path):
         print(f"Missing file: {annot_path}")
         return
-    
+
     with open(annot_path, "r") as f:
         data = json.load(f)
-    
-    id_to_filename = {img['id'] : img['file_name'] for img in data["images"]}
+
+    id_to_filename = {img["id"]: img["file_name"] for img in data["images"]}
     instructions = {}
 
-    for ann in tqdm(data["annotations"], desc = f"Processing {split_name}"):
+    for ann in tqdm(data["annotations"], desc=f"Processing {split_name}"):
         img_id = ann["image_id"]
         caption = ann["caption"]
         instruction = caption_to_instruction(caption)
@@ -46,7 +37,7 @@ def build_instruction_json(annot_path: str, split_name: str):
         if not file_name:
             continue
         instructions.setdefault(file_name, []).append(instruction)
-    
+
     single_instruction = {k: random.choice(v) for k, v in instructions.items()}
 
     out_path = os.path.join(PROCESSED_DIR, f"instructions_{split_name}.json")
