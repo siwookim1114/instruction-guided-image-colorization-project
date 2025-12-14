@@ -31,7 +31,6 @@ class ExampleRunner(Runner):
 
         return encoder(dataset[0]["L"].unsqueeze(0))
 
-
 class ImageEncoderExamplePipelineFactory(PipelineFactory):
     @classmethod
     def create(cls):

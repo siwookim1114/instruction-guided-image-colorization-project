@@ -10,11 +10,12 @@ from utils.preprocess import InstructionColorizationDataset
 from models.text_encoder import TextEncoder
 from models.unet_encoder import UNetEncoder
 from models.colorization_model import InstructionColorizationModel
+from torchvision import transforms
 
 def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoints"):
     os.makedirs(save_dir, exist_ok = True)
     
-    criterion = nn.SmoothL1Loss     # Stabalization for LAB colorization
+    criterion = nn.SmoothL1Loss()     # Stabalization for LAB colorization
     model.train()
 
     for epoch in range(num_epochs):
@@ -61,7 +62,8 @@ if __name__ == "__main__":
     dataset = InstructionColorizationDataset(
         img_dir = "data/raw/train/train2014",
         ann_path = "data/processed/instructions_train2014.json",
-        tokenizer = tokenizer
+        tokenizer = tokenizer,
+        transform=transforms.Compose([transforms.Resize((480,640))])
     )
     dataloader = DataLoader(
         dataset,

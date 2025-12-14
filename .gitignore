@@ -4,3 +4,4 @@ data/raw/
 *.png
 *.json
 **/__pycache__
+checkpoints

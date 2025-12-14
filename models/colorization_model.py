@@ -35,7 +35,7 @@ class InstructionColorizationModel(nn.Module):
         text_feat = self.text_encoder(text_inputs)   # shape: (B, text_dim)
 
         # Encoding image -> UNet features
-        x4, _, _, _, _ = self.image_encoder(L) # x4 shape: (B, base*8, H/16, W/16)
+        x4, _ = self.image_encoder(L) # x4 shape: (B, base*8, H/16, W/16)
 
         # Injecting text into image feature map
         B, C, H, W = x4.shape
