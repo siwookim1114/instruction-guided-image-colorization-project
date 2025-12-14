@@ -12,6 +12,16 @@ from models.unet_encoder import UNetEncoder
 from models.colorization_model import InstructionColorizationModel
 from torchvision import transforms
 
+def chroma_loss(pred_ab, gt_ab, eps=1e-6):
+    # pred_ab, gt_ab: (B, 2, H, W)
+    pred_a, pred_b = pred_ab[:, 0], pred_ab[:, 1]
+    gt_a, gt_b     = gt_ab[:, 0], gt_ab[:, 1]
+
+    chroma_pred = torch.sqrt(pred_a ** 2 + pred_b ** 2 + eps)
+    chroma_gt   = torch.sqrt(gt_a ** 2 + gt_b ** 2 + eps)
+
+    return torch.mean(torch.abs(chroma_pred - chroma_gt))
+
 def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoints"):
     os.makedirs(save_dir, exist_ok = True)
     
@@ -30,7 +40,13 @@ def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoi
 
             # Forward pass
             pred_ab = model(L, text_input)
-            loss = criterion(pred_ab, ab)
+            loss_l1 = criterion(pred_ab, ab)
+            loss_chroma = chroma_loss(pred_ab, ab)
+            
+            if epoch < 1:
+                loss = loss_l1
+            else:
+                loss = loss_l1 + 0.1 * loss_chroma
 
             # Backward Propagation
             optimizer.zero_grad()
@@ -38,7 +54,11 @@ def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoi
             optimizer.step()
 
             running_loss += loss.item()
-            pbar.set_postfix({"loss": loss.item()})
+            pbar.set_postfix({
+                "L1": loss_l1.item(),
+                "chroma": loss_chroma.item(),
+                "total": loss.item()
+            })
 
         # Epoch Summary
         avg_loss = running_loss / len(dataloader)
@@ -89,5 +109,5 @@ if __name__ == "__main__":
     
     # Training
     train(
-       model, dataloader, optimizer, device, num_epochs = 10, save_dir = "checkpoints"
+       model, dataloader, optimizer, device, num_epochs = 2, save_dir = "checkpoints"
    )

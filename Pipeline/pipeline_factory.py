@@ -3,33 +3,47 @@ import os
 from Pipeline.pipe import Pipe
 from Pipeline.pipeline import Pipeline
 from config import DATASETS, ANNOTATIONS
-from Pipeline.runner import (
-    Runner,
-    DownloaderRunner,
-    InstructionRunner,
-    PreprocessorRunner,
-    UNetEncoderRunner,
-)
+from Pipeline.runner import *
 from transformers import AutoTokenizer
-
 
 class PipelineFactory(ABC):
     @abstractmethod
     def create(): ...
 
-
-class ExampleRunner(Runner):
-    def run(self, inputs: dict = None):
-        dataset = inputs["preprocess"]
-        encoder = inputs["image_encoder"]
-
-        if not encoder or not dataset:
-            raise ValueError("Dependencies have resolved erroneously.")
-
-        print(encoder)
-        print(dataset)
-
-        return encoder(dataset[0]["L"].unsqueeze(0))
+class ImageColorizationPipelineFactory(PipelineFactory):
+    @classmethod
+    def create(cls):
+        pipeline = Pipeline()
+        # Get Device
+        get_device_runner = GetDeviceRunner()
+        get_device_pipe = Pipe(get_device_runner, "GetDevice")
+        
+        # Get Tokenizer
+        get_tokenizer_runner = GetTokenizerRunner()
+        get_tokenizer_pipe = Pipe(get_tokenizer_runner, "GetTokenizer")
+        
+        # Get Inputs
+        get_input_runner = GetInputRunner()
+        get_input_pipe = Pipe(get_input_runner, "GetInput")
+        
+        # Get Model
+        get_model_runner = GetModelRunner()
+        get_model_pipe = Pipe(get_model_runner, "GetModel")
+        get_model_pipe.add_dependency(get_device_pipe)
+        get_model_pipe.add_dependency(get_input_pipe)
+        
+        # Get TestSingleImage
+        test_single_image_runner = TestSingleImageRunner()
+        test_single_image_pipe = Pipe(test_single_image_runner, "TestSingleImage")
+        test_single_image_pipe.add_dependency(get_device_pipe)
+        test_single_image_pipe.add_dependency(get_input_pipe)
+        test_single_image_pipe.add_dependency(get_tokenizer_pipe)
+        test_single_image_pipe.add_dependency(get_model_pipe)
+        
+        # Build Pipeline 
+        pipeline.add_pipe(get_device_pipe).add_pipe(get_tokenizer_pipe).add_pipe(get_input_pipe).add_pipe(get_model_pipe).add_pipe(test_single_image_pipe)
+        pipeline.set_output_pipe(test_single_image_pipe)
+        return pipeline
 
 class ImageEncoderExamplePipelineFactory(PipelineFactory):
     @classmethod
@@ -92,3 +106,39 @@ class ImageEncoderExamplePipelineFactory(PipelineFactory):
     @classmethod
     def _create_img_encoder_runner(cls):
         return UNetEncoderRunner(1, 64)
+
+
+def lab_to_rgb__(L, ab):
+    """
+    L: (1, H, W) tensor in [-1, 1]
+    ab: (2, H, W) tensor in [-1, 1]
+    returns: RGB image uint8
+    """
+    if isinstance(L, torch.Tensor):
+        L = L.detach().cpu()
+    if isinstance(ab, torch.Tensor):
+        ab = ab.detach().cpu()
+
+    # Reshape if needed
+    if len(L.shape) == 3:
+        L = L.squeeze(0)  # (H, W)
+    if len(ab.shape) == 3 and ab.shape[0] == 2:
+        ab = np.transpose(ab, (1, 2, 0))  # (H, W, 2)
+
+    # Undo normalization
+    L = (L + 1.0) * 50.0
+    ab = ab * 128.0
+
+    # Stacking to LAB image
+    lab = np.zeros((L.shape[0], L.shape[1], 3), dtype = np.float32)
+    lab[:, :, 0] = L
+    lab[:, :, 1:] = ab.transpose(1, 2, 0)
+
+    # Convert LAB -> RGB
+    rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+
+    # Clip to valid range
+    rgb = np.clip(rgb, 0.0, 1.0)
+    rgb = (rgb * 255.0).astype(np.uint8)
+
+    return np.clip(rgb, 0, 1)

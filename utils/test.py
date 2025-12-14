@@ -323,7 +323,7 @@ if __name__ == "__main__":
     ).to(device)
     
     # Load trained checkpoint (use your best checkpoint)
-    checkpoint_path = "checkpoints/epoch_4.pth"  # Adjust to your best model
+    checkpoint_path = "checkpoints/epoch_2.pth"  # Adjust to your best model
     model = load_checkpoint(model, checkpoint_path, device)
     
     # Evaluate on test set

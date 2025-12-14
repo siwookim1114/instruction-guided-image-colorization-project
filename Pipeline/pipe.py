@@ -22,11 +22,9 @@ class Pipe:
         return self
 
     def run(self):
-        if not self.ready():
-            return
-
-        self.result = self.runner.run({dp.name: dp.result for dp in self.dependencies})
-        self.set_success()
+        if self.ready():
+            self.result = self.runner.run({dp.name: dp.result for dp in self.dependencies})
+            self.set_success()
 
     def set_runner(self, runner: Runner):
         self.runner = runner
