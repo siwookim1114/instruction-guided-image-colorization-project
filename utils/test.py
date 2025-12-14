@@ -51,42 +51,6 @@ def lab_to_rgb(L, ab):
     rgb = (rgb * 255.0).astype(np.uint8)
     return rgb
 
-def lab_to_rgb__(L, ab):
-    """
-    L: (1, H, W) tensor in [-1, 1]
-    ab: (2, H, W) tensor in [-1, 1]
-    returns: RGB image uint8
-    """
-    if isinstance(L, torch.Tensor):
-        L = L.detach().cpu()
-    if isinstance(ab, torch.Tensor):
-        ab = ab.detach().cpu()
-
-    # Reshape if needed
-    if len(L.shape) == 3:
-        L = L.squeeze(0)  # (H, W)
-    if len(ab.shape) == 3 and ab.shape[0] == 2:
-        ab = np.transpose(ab, (1, 2, 0))  # (H, W, 2)
-
-    # Undo normalization
-    L = (L + 1.0) * 50.0
-    ab = ab * 128.0
-
-    # Stacking to LAB image
-    lab = np.zeros((L.shape[0], L.shape[1], 3), dtype = np.float32)
-    lab[:, :, 0] = L
-    lab[:, :, 1:] = ab.transpose(1, 2, 0)
-
-    # Convert LAB -> RGB
-    rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-
-    # Clip to valid range
-    rgb = np.clip(rgb, 0.0, 1.0)
-    rgb = (rgb * 255.0).astype(np.uint8)
-
-    return np.clip(rgb, 0, 1)
-
-
 def visualize_results(L, pred_ab, gt_ab, text_instruction, save_path=None):
     """
     Visualize results: Grayscale input, predicted colorization, ground truth
