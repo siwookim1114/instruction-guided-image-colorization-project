@@ -1,7 +1,3 @@
-data/raw/
-*.jpg
-*.jpeg
-*.png
-*.json
+data/raw
 **/__pycache__
 checkpoints*
