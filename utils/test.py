@@ -10,14 +10,15 @@ from transformers import AutoTokenizer
 import json
 from PIL import Image
 import cv2
+from torchvision import transforms
+import torch.nn.functional as F
 
 # Load utils and models
 from utils.preprocess import InstructionColorizationDataset
 from models.text_encoder import TextEncoder
 from models.unet_encoder import UNetEncoder
 from models.colorization_model import InstructionColorizationModel
-from torchvision import transforms
-import torch.nn.functional as F
+from utils.train import chroma_loss
 
 def lab_to_rgb(L, ab):
     """
@@ -95,7 +96,8 @@ def evaluate_model(model, dataloader, device, save_dir="test_results"):
     criterion = nn.SmoothL1Loss()
     
     # Metrics storage
-    losses = []
+    l1_losses = []
+    chroma_losses = []
     mse_scores = []
     mae_scores = []
     psnr_scores = []
@@ -110,9 +112,12 @@ def evaluate_model(model, dataloader, device, save_dir="test_results"):
             # Forward pass
             pred_ab = model(L, text_input)
             
-            # Calculate loss
+            # Calculate l1 loss
             loss = criterion(pred_ab, ab)
-            losses.append(loss.item())
+            l1_losses.append(loss.item())
+
+            # Calculate Chroma loss
+            chroma_losses.append(chroma_loss(pred_ab, ab).cpu().numpy())
             
             # Calculate MSE and MAE
             pred_np = pred_ab.cpu().numpy().flatten()
@@ -146,7 +151,8 @@ def evaluate_model(model, dataloader, device, save_dir="test_results"):
                     )
     
     # Calculate average metrics
-    avg_loss = np.mean(losses)
+    avg_l1_loss = np.mean(l1_losses)
+    avg_chroma_losss = np.mean(chroma_losses)
     avg_mse = np.mean(mse_scores)
     avg_mae = np.mean(mae_scores)
     avg_psnr = np.mean(psnr_scores)
@@ -155,7 +161,8 @@ def evaluate_model(model, dataloader, device, save_dir="test_results"):
     print("\n" + "="*50)
     print("EVALUATION RESULTS")
     print("="*50)
-    print(f"Average Loss: {avg_loss:.5f}")
+    print(f"Average L1 Loss: {avg_l1_loss:.5f}")
+    print(f"Average Chroma Loss: {avg_chroma_losss:.5f}")
     print(f"Average MSE: {avg_mse:.5f}")
     print(f"Average MAE: {avg_mae:.5f}")
     print(f"Average PSNR: {avg_psnr:.2f} dB")
@@ -164,7 +171,8 @@ def evaluate_model(model, dataloader, device, save_dir="test_results"):
     
     # Save metrics to file
     metrics = {
-        "loss": float(avg_loss),
+        "l1_loss": float(avg_l1_loss),
+        "chroma_loss": float(avg_chroma_losss),
         "mse": float(avg_mse),
         "mae": float(avg_mae),
         "psnr": float(avg_psnr),
@@ -287,7 +295,7 @@ if __name__ == "__main__":
     ).to(device)
     
     # Load trained checkpoint (use your best checkpoint)
-    checkpoint_path = "checkpoints/epoch_2.pth"  # Adjust to your best model
+    checkpoint_path = "checkpoints_1.0.3/epoch_2.pth"  # Adjust to your best model
     model = load_checkpoint(model, checkpoint_path, device)
     
     # Evaluate on test set

@@ -103,7 +103,7 @@ class GetModelRunner(Runner):
         print("Running GetModelRunner")
         device = inputs["GetDevice"]
         _, _, checkpoint_no = inputs["GetInput"]
-        checkpoint_path = f"checkpoints_1.0.0/epoch_{checkpoint_no}.pth"
+        checkpoint_path = f"checkpoints_1.0.3/epoch_{checkpoint_no}.pth"
         
         model = InstructionColorizationModel(
             text_model="bert-base-uncased",
@@ -133,14 +133,13 @@ class TestSingleImageRunner(Runner):
         ])
         
         # Read image
-        img = Image.open(image_path).convert('RGB')
+        img = np.array(Image.open(image_path).convert("RGB"), dtype = np.float32) / 255.0
         
         # Convert RGB to LAB
-        img_np = np.array(img)
-        img_lab = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
+        img_lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB).astype(np.float32)
         
         # Normalize
-        L = img_lab[:, :, 0] / 100.0  # L channel [0, 100] -> [0, 1]
+        L = img_lab[:, :, 0] /  50.0 - 1.0  # L channel [0, 100] -> [0, 1]
         ab = img_lab[:, :, 1:] / 128.0  # ab channels [-128, 127] -> [-1, 1]
         
         # Resize if needed
@@ -174,14 +173,12 @@ class TestSingleImageRunner(Runner):
         
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
         axes[0].imshow(L_np, cmap='gray')
-        axes[0].set_title('Grayscale Input')
         axes[0].axis('off')
         
         axes[1].imshow(pred_rgb)
         axes[1].set_title(f'Colorized\nInstruction: {instruction}')
         axes[1].axis('off')
-        
-        plt.suptitle(f"Instruction: {instruction}", fontsize=12, y=0.95)
+    
         plt.tight_layout()
         plt.savefig("pipeline_sample.png", dpi=150, bbox_inches='tight')
         plt.close()

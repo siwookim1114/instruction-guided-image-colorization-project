@@ -22,6 +22,41 @@ def chroma_loss(pred_ab, gt_ab, eps=1e-6):
 
     return torch.mean(torch.abs(chroma_pred - chroma_gt))
 
+def weighted_l2_loss(output_ab, target_ab, weight_power=2.0, epsilon=1e-6):
+    # 1. Calculate the standard L2 distance (squared error)
+    squared_error = (output_ab - target_ab)**2
+    
+    # Sum the squared errors for 'a' and 'b' channels for each pixel
+    l2_distance = torch.sum(squared_error, dim=1, keepdim=True)
+    
+    
+    # 2. Calculate Saturation (Chroma) for Weighting (S = sqrt(a^2 + b^2))
+    target_a = target_ab[:, 0, :, :]
+    target_b = target_ab[:, 1, :, :]
+    
+    # Chroma squared: a^2 + b^2. Shape: (Batch, H, W)
+    chroma_sq = target_a**2 + target_b**2
+    
+    # Chroma (Saturation S): sqrt(a^2 + b^2). Shape: (Batch, H, W)
+    chroma = torch.sqrt(chroma_sq + epsilon) # Add epsilon for safety
+    
+    
+    # 3. Define the Weighting Map $\lambda(a, b)$
+    weight_map = 1.0 + chroma**weight_power
+    
+    # The final loss calculation requires the weight_map to have 
+    weight_map = weight_map.unsqueeze(1)
+    
+    
+    # 4. Apply the Weighting
+    # Weighted error = L2_distance * Weight_Map
+    weighted_error = l2_distance * weight_map
+    
+    # The final loss is the mean of the weighted errors across all pixels and batch
+    loss = torch.mean(weighted_error)
+    
+    return loss
+
 def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoints"):
     os.makedirs(save_dir, exist_ok = True)
     
@@ -40,13 +75,14 @@ def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoi
 
             # Forward pass
             pred_ab = model(L, text_input)
-            loss_l1 = criterion(pred_ab, ab)
-            loss_chroma = chroma_loss(pred_ab, ab)
+            # loss_l1 = criterion(pred_ab, ab)
+            # loss_chroma = chroma_loss(pred_ab, ab)
             
-            if epoch < 1:
-                loss = loss_l1
-            else:
-                loss = loss_l1 + 0.1 * loss_chroma
+            # if epoch < 1:
+            #     loss = loss_l1
+            # else:
+            #     loss = loss_chroma
+            loss = weighted_l2_loss(pred_ab, ab)
 
             # Backward Propagation
             optimizer.zero_grad()
@@ -55,8 +91,8 @@ def train(model, dataloader, optimizer, device, num_epochs, save_dir = "checkpoi
 
             running_loss += loss.item()
             pbar.set_postfix({
-                "L1": loss_l1.item(),
-                "chroma": loss_chroma.item(),
+                # "L1": loss_l1.item(),
+                # "chroma": loss_chroma.item(),
                 "total": loss.item()
             })
 
@@ -109,5 +145,5 @@ if __name__ == "__main__":
     
     # Training
     train(
-       model, dataloader, optimizer, device, num_epochs = 2, save_dir = "checkpoints"
+       model, dataloader, optimizer, device, num_epochs = 8, save_dir = "checkpoints"
    )
